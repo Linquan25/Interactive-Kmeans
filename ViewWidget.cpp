@@ -1,10 +1,11 @@
 #include "ViewWidget.h"
-
 #include <chrono>
 #include <random>
 #include <QOpenGLShaderProgram>
 #include <QtMath>
 #include <QTimer>
+#include <QDebug>
+#include <QtMath>
 
 ViewWidget::ViewWidget(QWidget *parent, Qt::WindowFlags f) : QOpenGLWidget(parent, f)
 {
@@ -13,40 +14,10 @@ ViewWidget::ViewWidget(QWidget *parent, Qt::WindowFlags f) : QOpenGLWidget(paren
 
   turntableTimer->start(30);
 
-  // Create random 3D points
-  int samples = 100000;
+  generatePoints();
+  kmeans_initial(2);
+  kmeans_step();
 
-  // Get seed from clock
-  long seed = std::chrono::system_clock::now().time_since_epoch().count();
-
-  // Seed engine and set random distribution to [-1, 1]
-  std::default_random_engine engine(seed);
-  std::uniform_real_distribution<float> distribution(-1.0, 1.0);
-
-  // Create points inside a sphere
-  int count = 0;
-  while(count < samples)
-  {
-    // Uniformly sample cube
-    float x = distribution(engine);
-    float y = distribution(engine);
-    float z = distribution(engine);
-
-    // Reject all points outside the sphere
-    if(std::sqrt(x*x + y*y + z*z) <= 1.0)
-    {
-      m_points.append({x, y, z});
-
-      // Re-map positions to [0, 1] and use as color
-      float r = (x + 1.0f)/2.0;
-      float g = (y + 1.0f)/2.0;
-      float b = (z + 1.0f)/2.0;
-
-      m_colors.append({r, g, b});
-
-      count++;
-    }
-  }
 }
 
 QVector<GLfloat> ViewWidget::createPolygon(float x, float y, float z, float radius, int sides)
@@ -114,7 +85,6 @@ void ViewWidget::paintGL()
 
    int vertexLocation = program.attributeLocation("vertex");
    int matrixLocation = program.uniformLocation("matrix");
-   int colorLocation = program.uniformLocation("color");
 
    /*static GLfloat const triangleVertices[] = {
        60.0f,  10.0f,  0.0f,
@@ -137,10 +107,10 @@ void ViewWidget::paintGL()
    m_pointProgram.enableAttributeArray("color");
 
    m_pointProgram.setUniformValue("matrix", pmvMatrix);
-   m_pointProgram.setAttributeArray("vertex", m_points.constData(),3);
+   m_pointProgram.setAttributeArray("vertex", m_points.constData(),m_dimension);
    m_pointProgram.setAttributeArray("color", m_colors.constData(),3);
 
-   glDrawArrays(GL_POINTS, 0, m_points.count()/3);
+   glDrawArrays(GL_POINTS, 0, m_points.count()/m_dimension);
 
    m_pointProgram.disableAttributeArray("vertex");
    m_pointProgram.disableAttributeArray("color");
@@ -191,6 +161,143 @@ void ViewWidget::updateTurntable()
   update();
 }
 
+void ViewWidget::generatePoints()
+{
+  // Create random 3D points
+  // Get seed from clock
+  long seed = std::chrono::system_clock::now().time_since_epoch().count();
+
+  // Seed engine and set random distribution to [-1, 1]
+  std::default_random_engine engine(seed);
+  std::uniform_real_distribution<float> distribution(-1.0, 1.0);
+
+  // Create points inside a sphere
+  int count = 0;
+  while(count < m_pointNumber)
+  {
+    // Uniformly sample cube
+    for (int i=0; i<m_dimension; i++) {
+      float x = distribution(engine);
+      m_points.append({x});
+    }
+    count++;
+  }
+  m_colors = QVector<float>(m_pointNumber * 3, 0.0f);
+  qDebug()<<m_points.size();
+}
+
+void ViewWidget::kmeans_step()
+{
+  //clustering part
+  int iteration = 0;
+  while(iteration<10000 && m_dirty){
+    iteration++;
+    //distance calculation and clusering
+    for (int i = 0 ; i < m_pointNumber; i++) {
+      float min = 999999.9f;
+      for (int j = 0; j < m_K; j++) {
+        float distance = euclideanDistance(j, i);
+        if(distance < min){
+          min = distance;
+          m_class[i]=j;
+          mapColor(i,j);
+        }
+      }
+    }
+    //Update new centroid
+    for (int i = 0; i< m_K; i++) {
+      QVector<float> coor = QVector<float>(m_dimension, 0.0f);
+      int count = 0;
+      for (int j = 0; j<m_pointNumber; j++) {
+        if(m_class[j]==i){
+          for (int k=0; k<m_dimension; k++) {
+            coor[k] += m_points[ j * m_dimension + k];
+          }
+          count++;
+        }
+      }
+      updateCentroids(coor, count, i);
+    }
+  }
+}
+
+void ViewWidget::kmeans_initial(int mode)
+{
+  //Initialization
+  // Seed engine and set random distribution to [-1, 1]
+  long seed = std::chrono::system_clock::now().time_since_epoch().count();
+  std::default_random_engine engine(seed);
+  std::uniform_real_distribution<float> distribution(-1.0, 1.0);
+  //Random real
+  if(mode == 0){
+    for (int i=0; i<m_dimension * m_K; i++){
+      float x = distribution(engine);
+      m_centroids.append(x);
+    }
+  }else if(mode == 1){    //random sample
+    for (int i=0; i<m_K; i++){
+      int x = (distribution(engine)+1) / 2 * m_pointNumber;
+      x = x * m_dimension;
+      for (int j=0; j<m_dimension; j++) {
+        m_centroids.append(m_points.at(x+j));
+      }
+    }
+  }else{    //K-Means++
+    //Randomly select 1 sample first
+    int x = (distribution(engine)+1) / 2 * m_pointNumber;
+    x = x * m_dimension;
+    for (int j=0; j<m_dimension; j++) {
+      m_centroids.append(m_points.at(x+j));
+    }
+    // find the farthest sample
+    for (int i = 0;i < m_K-1 ; ++i ) {
+      float max = -1;
+      int index = 0;
+      for ( int j = 0; j < m_pointNumber; j++){
+        float distance = 0;
+        for (int k = 0; k < m_centroids.size()/m_dimension; k++){
+          distance += euclideanDistance(k, j);
+          }
+        if( distance > max ){
+          max = distance;
+          index = j;
+        }
+      }
+      for (int j=0; j<m_dimension; j++) {
+        m_centroids.append(m_points.at(index+j));
+      }
+    }
+  }
+  m_class = QVector<int>(m_pointNumber,0);
+}
+
+float ViewWidget::euclideanDistance(int centroid_index, int point_index)
+{
+  float distance = 0.0f;
+  for (int i=0; i<m_dimension; i++) {
+    distance += qPow((m_centroids.at(centroid_index * m_dimension + i)-m_points.at(point_index * m_dimension + i)), 2);
+  }
+  return qSqrt(distance);
+}
+
+void ViewWidget::mapColor(int point_index, int colormap_index)
+{
+  for (int i=0; i<3; i++) {
+    m_colors[point_index * 3 + i] = m_colorMaps[colormap_index * 3 + i];
+  }
+}
+
+void ViewWidget::updateCentroids(QVector<float> coor, int count, int centroid_index)
+{
+  bool dirty = false;
+  for (int i=0; i<m_dimension; i++) {
+    if(coor[i]/count != m_centroids[centroid_index * m_dimension + i]){
+      m_centroids[centroid_index * m_dimension + i] = coor[i]/count;
+      dirty = true;
+    }
+  }
+  dirty ? m_dirty = true : m_dirty = false;
+}
 
 
 

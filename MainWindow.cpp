@@ -3,13 +3,32 @@
 
 MainWindow::MainWindow(QWidget *parent)
   : QMainWindow(parent)
-  , ui(new Ui::MainWindow)
+  , ui(new Ui::MainWindow), m_controlPanel(new ControlPanel(this))
 {
   ui->setupUi(this);
+  m_controlPanel->show();
+  connect(ui->actionStep_Kmeans, &QAction::triggered, ui->openGLWidget, &ViewWidget::kmeans_step);
+  //Control Panel
+  connect(ui->actionShow_Control_Panel, &QAction::triggered, m_controlPanel, &ControlPanel::show);
+  connect(m_controlPanel, &ControlPanel::initialCentroids, ui->openGLWidget, &ViewWidget::kmeans_initial);
+  connect(m_controlPanel, &ControlPanel::step, ui->openGLWidget, &ViewWidget::kmeans_step);
+  connect(m_controlPanel, &ControlPanel::pointsShow, ui->openGLWidget, &ViewWidget::setPointsOn);
+  connect(m_controlPanel, &ControlPanel::axisShow, ui->openGLWidget, &ViewWidget::setAxisOn);
+  connect(m_controlPanel, &ControlPanel::centroidsShow, ui->openGLWidget, &ViewWidget::setCentroidsOn);
+  connect(m_controlPanel, &ControlPanel::movieOn, ui->openGLWidget, &ViewWidget::setMovieOn);
+  //Control Panel axis rotation
+  connect(m_controlPanel, &ControlPanel::xAngle, ui->openGLWidget, &ViewWidget::setXRotation);
+  connect(m_controlPanel, &ControlPanel::yAngle, ui->openGLWidget, &ViewWidget::setYRotation);
+  connect(m_controlPanel, &ControlPanel::zAngle, ui->openGLWidget, &ViewWidget::setZRotation);
+  //Control Panel zooming
+  connect(m_controlPanel, &ControlPanel::zooming, ui->openGLWidget, &ViewWidget::setZooming);
+  //Sampling datapoints
+  connect(m_controlPanel, &ControlPanel::randomSampling, ui->openGLWidget, &ViewWidget::generatePoints);
+  //Sampling from file
+  connect(m_controlPanel, &ControlPanel::loadingFileDir, ui->openGLWidget, &ViewWidget::generatePointsFromFile);
 }
 
 MainWindow::~MainWindow()
 {
   delete ui;
 }
-

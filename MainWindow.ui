@@ -6,15 +6,15 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>800</width>
-    <height>600</height>
+    <width>804</width>
+    <height>624</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>MainWindow</string>
   </property>
   <widget class="QWidget" name="centralwidget">
-   <layout class="QVBoxLayout" name="verticalLayout">
+   <layout class="QVBoxLayout" name="verticalLayout_2">
     <item>
      <widget class="ViewWidget" name="openGLWidget"/>
     </item>
@@ -25,12 +25,36 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>800</width>
+     <width>804</width>
      <height>20</height>
     </rect>
    </property>
+   <widget class="QMenu" name="menuOptions">
+    <property name="title">
+     <string>Options</string>
+    </property>
+    <addaction name="actionStep_Kmeans"/>
+    <addaction name="actionShow_Control_Panel"/>
+    <addaction name="actionLoad_from_File"/>
+   </widget>
+   <addaction name="menuOptions"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
+  <action name="actionStep_Kmeans">
+   <property name="text">
+    <string>Step Kmeans</string>
+   </property>
+  </action>
+  <action name="actionShow_Control_Panel">
+   <property name="text">
+    <string>Show Control Panel</string>
+   </property>
+  </action>
+  <action name="actionLoad_from_File">
+   <property name="text">
+    <string>Load from File...</string>
+   </property>
+  </action>
  </widget>
  <customwidgets>
   <customwidget>

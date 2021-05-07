@@ -105,3 +105,33 @@ void ControlPanel::on_fileLoadingB_clicked()
   QString file_name = QFileDialog::getOpenFileName(this,"Select a File", QDir::homePath());
   emit loadingFileDir(file_name);
 }
+
+void ControlPanel::on_stepbackB_clicked()
+{
+  emit stepBack();
+}
+
+void ControlPanel::on_runB_clicked()
+{
+  emit runThrough();
+}
+
+void ControlPanel::on_pointSizeSlider_valueChanged(int value)
+{
+  emit pointSize(float(value+1)/10);
+}
+
+void ControlPanel::on_centroidSizeSlider_valueChanged(int value)
+{
+  emit centroidSize(float(value+1)/10);
+}
+
+void ControlPanel::on_horizontalSlider_valueChanged(int value)
+{
+  emit panningX(float(value)/10);
+}
+
+void ControlPanel::on_verticalSlider_valueChanged(int value)
+{
+  emit panningY(float(value)/10);
+}

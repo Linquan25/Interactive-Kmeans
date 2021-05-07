@@ -32,6 +32,8 @@ public slots:
 signals:
   void initialCentroids(int K, int mode);
   void step();
+  void stepBack();
+  void runThrough();
   void pointsShow(bool checked);
   void axisShow(bool checked);
   void centroidsShow(bool checked);
@@ -42,11 +44,27 @@ signals:
   void zooming(int distance);
   void randomSampling(int dimension, int sampleNumber);
   void loadingFileDir(QString dir);
+  void pointSize(float size);
+  void centroidSize(float size);
+  void panningX(float d);
+  void panningY(float d);
 
 private slots:
   void on_randomSamplingB_clicked();
 
   void on_fileLoadingB_clicked();
+
+  void on_stepbackB_clicked();
+
+  void on_runB_clicked();
+
+  void on_pointSizeSlider_valueChanged(int value);
+
+  void on_centroidSizeSlider_valueChanged(int value);
+
+  void on_horizontalSlider_valueChanged(int value);
+
+  void on_verticalSlider_valueChanged(int value);
 
 private:
   void setSlider(QSlider * slider);

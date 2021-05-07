@@ -24,6 +24,8 @@ public slots:
   void generatePointsFromFile(QString dir);
   void kmeans_initial(int k, int mode);
   void kmeans_step();
+  void kmeans_setpBack();
+  void kmeans_runthrough();
   float euclideanDistance(int centroid_index, int point_index);
   void mapColor(int point_index, int colormap_index);
   void updateCentroids(QVector<float> coor, int count, int centroid_index);
@@ -36,7 +38,13 @@ public slots:
   void setZRotation(int angle);
   void setZooming(int zoomLevel);
   void clearPoints();
-  void energyCalculation();
+  void calculatePointsNDVisual();
+  void calculateCentroidsNDVisual();
+  float energyCalculation();
+  void setPointSize(float size);
+  void setCentroidSize(float size);
+  void setPanningX(float d);
+  void setPanningY(float d);
 private:
   QVector<float> colormapGenerator(int size);
   QElapsedTimer m_elapsedTimer;
@@ -55,18 +63,25 @@ private:
   QVector<float> m_centroidsColor;
   QVector<float> m_colorMaps;
   QVector<float> m_centroids;
+  QVector<float> m_centroids_history;
+  QVector<float> m_centroids_history_history;
   QVector<int> m_class;
+  QVector<float> m_pointsNDVisual;
+  QVector<float> m_centroidsNDVisual;
   QOpenGLShaderProgram m_pointProgram;
 
   bool m_pointsOn = true;
   bool m_centroidsOn = true;
   bool m_axisOn = true;
   bool m_movieOn = false;
-
+  float m_pointSize = 1.0f;
+  float m_centroidSize = 1.0f;
   float m_xRotation = 0.0f;
   float m_yRotation = 0.0f;
   float m_zRotation = 0.0f;
   float m_zooming = 0.0f;
+  float x_panning = 0.0f;
+  float y_panning = 0.0f;
 };
 
 #endif // VIEWWIDGET_H

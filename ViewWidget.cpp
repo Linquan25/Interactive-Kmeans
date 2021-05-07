@@ -11,6 +11,7 @@
 #include <QTextStream>
 #include <QMessageBox>
 
+
 ViewWidget::ViewWidget(QWidget *parent, Qt::WindowFlags f) : QOpenGLWidget(parent, f)
 {
   auto turntableTimer = new QTimer(this);
@@ -26,8 +27,10 @@ static const char *vertexShaderCode_points =
     "attribute mediump vec4 color;\n"
     "varying mediump vec4 vColor;\n"
     "uniform highp mat4 matrix;\n"
+    "uniform mediump float pSize;\n"
     "void main(void)\n"
     "{\n"
+    "   gl_PointSize = pSize;\n"
     "   gl_Position = matrix * vertex;\n"
     "   vColor = color;\n"
     "}";
@@ -78,13 +81,11 @@ float ViewWidget::angleForTime(qint64 msTime, float secondsPerRotation) const
 void ViewWidget::initializeGL()
 {
  initializeOpenGLFunctions();
-
  glClearColor(0.2,0.2,0.2,1.0);
-
  glEnable(GL_DEPTH_TEST);
  glEnable(GL_POINT_SMOOTH);
- //glPointSize(5.0);
-
+ glEnable(GL_VERTEX_PROGRAM_POINT_SIZE);
+ //glPointSize(8.0);
  m_pointProgram.addShaderFromSourceCode(QOpenGLShader::Vertex,
    vertexShaderCode_points);
 
@@ -112,7 +113,7 @@ void ViewWidget::paintGL()
    //pmvMatrix.ortho(rect());
    //pmvMatrix.ortho(10, 110, 110, 10, -1, 1);float(width())/height()
    pmvMatrix.perspective(60,float(width())/height(), 1.0f, 1500.0f);
-   pmvMatrix.lookAt({0,0,5+m_zooming},{0,0,0},{0,1,0});
+   pmvMatrix.lookAt({x_panning,y_panning,5+m_zooming},{x_panning,y_panning,0},{0,1,0});
    if(m_movieOn){
      pmvMatrix.rotate(angleForTime(m_elapsedTimer.elapsed(),15), {0.0f, 1.0f, 0.0f});
    }
@@ -124,18 +125,26 @@ void ViewWidget::paintGL()
    m_pointProgram.bind();
    m_pointProgram.enableAttributeArray("vertex");
    m_pointProgram.enableAttributeArray("color");
-
+   //Draw Datapoints
+   m_pointProgram.setUniformValue("pSize", m_pointSize);
    m_pointProgram.setUniformValue("matrix", pmvMatrix);
-   m_pointProgram.setAttributeArray("vertex", m_points.constData(),m_dimension);
+   if(m_dimension > 3){
+     m_pointProgram.setAttributeArray("vertex", m_pointsNDVisual.constData(),3);
+   }else{
+     m_pointProgram.setAttributeArray("vertex", m_points.constData(),m_dimension);
+   }
    m_pointProgram.setAttributeArray("color", m_colors.constData(),3);
-
-   if(m_pointsOn) glDrawArrays(GL_POINTS, 0, m_points.count()/m_dimension);
-
-   m_pointProgram.setAttributeArray("vertex", m_centroids.constData(),m_dimension);
+   if(m_pointsOn) glDrawArrays(GL_POINTS, 0, m_pointNumber);
+   //Draw Centroids
+   m_pointProgram.setUniformValue("pSize", m_centroidSize);
+   if(m_dimension>3){
+     m_pointProgram.setAttributeArray("vertex", m_centroidsNDVisual.constData(),3);
+   }else{
+     m_pointProgram.setAttributeArray("vertex", m_centroids.constData(),m_dimension);
+   }
    m_pointProgram.setAttributeArray("color", m_colorMaps.constData(),3);
 
    if(m_centroidsOn) glDrawArrays(GL_POINTS, 0, m_K);
-
    m_pointProgram.disableAttributeArray("vertex");
    m_pointProgram.disableAttributeArray("color");
 
@@ -202,6 +211,10 @@ void ViewWidget::updateTurntable()
 
 void ViewWidget::generatePoints(int dimension, int sampleNumber)
 {
+  if(dimension<2 || sampleNumber<2){
+    QMessageBox::warning(this,"title","Invalid Input");
+    return;
+  }
   clearPoints();
   m_dimension = dimension;
   m_pointNumber = sampleNumber;
@@ -211,7 +224,7 @@ void ViewWidget::generatePoints(int dimension, int sampleNumber)
 
   // Seed engine and set random distribution to [-1, 1]
   std::default_random_engine engine(seed);
-  std::uniform_real_distribution<float> distribution(-1.0, 1.0);
+  std::uniform_real_distribution<float> distribution(-3.0, 3.0);
 
   // Create points inside a sphere
   int count = 0;
@@ -225,6 +238,7 @@ void ViewWidget::generatePoints(int dimension, int sampleNumber)
     count++;
   }
   m_colors = QVector<float>(m_pointNumber * 3, 1.0f);
+  if(m_dimension>3) calculatePointsNDVisual();
 }
 
 void ViewWidget::generatePointsFromFile(QString dir)
@@ -251,51 +265,84 @@ void ViewWidget::generatePointsFromFile(QString dir)
   m_points = temp;
   m_colors = QVector<float>(m_pointNumber * 3, 1.0f);
   file.close();
+  if(m_dimension>3) calculatePointsNDVisual();
 }
 
 void ViewWidget::kmeans_step()
 {
-  qDebug()<<"Here is in Step function";
   // Seed engine and set random distribution to [-1, 1]
   long seed = std::chrono::system_clock::now().time_since_epoch().count();
   std::default_random_engine engine(seed);
   std::uniform_real_distribution<float> distribution(-1.0, 1.0);
+  m_centroids_history_history = m_centroids_history;
+  m_centroids_history = m_centroids;
   //clustering part
-  int iteration = 0;
-    iteration++;
-    //distance calculation and clusering
-    for (int i = 0 ; i < m_pointNumber; i++) {
-      float min = 999999.9f;
-      for (int j = 0; j < m_K; j++) {
-        float distance = euclideanDistance(j, i);
-        if(distance < min){
-          min = distance;
+  //distance calculation and clusering
+  for (int i = 0 ; i < m_pointNumber; i++) {
+    float min = 999999.9f;
+    for (int j = 0; j < m_K; j++) {
+      float distance = euclideanDistance(j, i);
+      if(distance < min){
+        min = distance;
+        m_class[i]=j;
+        mapColor(i,j);
+      }else if(distance == min){
+        //Equal distance 50% chance change class
+        if (distribution(engine)>0){
           m_class[i]=j;
           mapColor(i,j);
-        }else if(distance == min){
-          //Equal distance 50% chance change class
-          if (distribution(engine)>0){
-            m_class[i]=j;
-            mapColor(i,j);
-          }
         }
       }
     }
-    //Update new centroid
-    for (int i = 0; i< m_K; i++) {
-      QVector<float> coor = QVector<float>(m_dimension, 0.0f);
-      int count = 0;
-      for (int j = 0; j<m_pointNumber; j++) {
-        if(m_class[j]==i){
-          for (int k=0; k<m_dimension; k++) {
-            coor[k] += m_points[ j * m_dimension + k];
-          }
-          count++;
+  }
+  //Update new centroid
+  for (int i = 0; i< m_K; i++) {
+    QVector<float> coor = QVector<float>(m_dimension, 0.0f);
+    int count = 0;
+    for (int j = 0; j<m_pointNumber; j++) {
+      if(m_class[j]==i){
+        for (int k=0; k<m_dimension; k++) {
+          coor[k] += m_points[ j * m_dimension + k];
         }
+        count++;
       }
-      updateCentroids(coor, count, i);
     }
-    energyCalculation();
+    updateCentroids(coor, count, i);
+  }
+  m_energy = energyCalculation();
+  m_iteration += 1;
+  if(m_dimension>3) calculateCentroidsNDVisual();
+}
+
+void ViewWidget::kmeans_setpBack()
+{
+  if(m_centroids_history.size()==0){
+    QMessageBox::warning(this,"title","You already stepped back!");
+    return;
+  }
+  if(m_iteration<2||m_centroids_history_history.size()==0){
+    QMessageBox::warning(this,"title","Too early to setp back!");
+    return;
+  }
+  m_centroids = m_centroids_history_history;
+  m_centroids_history.clear();
+  kmeans_step();
+  m_iteration -= 2;
+}
+
+void ViewWidget::kmeans_runthrough()
+{
+  bool dirty = true;
+  while(dirty && m_iteration<1000){
+    float energy_old = m_energy;
+    kmeans_step();
+    if(energy_old==m_energy) dirty = false;
+  }
+  if(!dirty){
+    QMessageBox::warning(this,"title","Clustered!");
+  }else{
+    QMessageBox::warning(this,"title","Reach to End!");
+  }
 }
 
 void ViewWidget::kmeans_initial(int k, int mode)
@@ -309,9 +356,10 @@ void ViewWidget::kmeans_initial(int k, int mode)
   // Seed engine and set random distribution to [-1, 1]
   long seed = std::chrono::system_clock::now().time_since_epoch().count();
   std::default_random_engine engine(seed);
-  std::uniform_real_distribution<float> distribution(-1.0, 1.0);
+  std::uniform_real_distribution<float> distribution(-3.0, 3.0);
   //clear m parameters in case multiple initialization
   m_centroids.clear();
+  m_centroids_history.clear();
   m_class = QVector<int>(m_pointNumber,0);
   m_colors = QVector<float>(m_pointNumber * 3, 1.0f);
   m_colorMaps = colormapGenerator(m_K);
@@ -325,7 +373,7 @@ void ViewWidget::kmeans_initial(int k, int mode)
   }else if(mode == 1){    //random sample
     qDebug()<<"random sample";
     for (int i=0; i<m_K; i++){
-      int x = (distribution(engine)+1) / 2 * m_pointNumber;
+      int x = (distribution(engine)+3) / 6 * m_pointNumber;
       mapColor(x, i);
       x = x * m_dimension;
       for (int j=0; j<m_dimension; j++) {
@@ -334,7 +382,7 @@ void ViewWidget::kmeans_initial(int k, int mode)
     }
   }else{    //K-Means++
     //Randomly select 1 sample first
-    int x = (distribution(engine)+1) / 2 * m_pointNumber;
+    int x = (distribution(engine)+3) / 6 * m_pointNumber;
     mapColor(x, 0);
     x = x * m_dimension;
     for (int j=0; j<m_dimension; j++) {
@@ -361,6 +409,8 @@ void ViewWidget::kmeans_initial(int k, int mode)
       }
     }
   }
+  m_iteration = 0;
+  if(m_dimension>3) calculateCentroidsNDVisual();
 }
 
 float ViewWidget::euclideanDistance(int centroid_index, int point_index)
@@ -439,15 +489,58 @@ void ViewWidget::clearPoints()
 {
   m_points.clear();
   m_centroids.clear();
+  m_centroids_history.clear();
+  m_centroids_history_history.clear();
   m_iteration = 0;
 }
 
-void ViewWidget::energyCalculation()
+void ViewWidget::calculatePointsNDVisual()
 {
-  m_energy = 0;
-  for(int i=0; i<m_pointNumber; i++){
-    m_energy += euclideanDistance(m_class[i], i);
+  m_pointsNDVisual.clear();
+  for (int i=0; i<m_pointNumber; i++) {
+    for(int j=0; j<3; j++){
+      m_pointsNDVisual.append(m_points[i * m_dimension + j]);
+    }
   }
+}
+
+void ViewWidget::calculateCentroidsNDVisual()
+{
+  m_centroidsNDVisual.clear();
+  for (int i=0; i<m_K; i++){
+    for (int j=0; j<3; j++){
+      m_centroidsNDVisual.append(m_centroids[i * m_dimension + j]);
+    }
+  }
+}
+
+float ViewWidget::energyCalculation()
+{
+  float energy = 0;
+  for(int i=0; i<m_pointNumber; i++){
+    energy += euclideanDistance(m_class[i], i);
+  }
+  return energy;
+}
+
+void ViewWidget::setPointSize(float size)
+{
+  m_pointSize = size;
+}
+
+void ViewWidget::setCentroidSize(float size)
+{
+  m_centroidSize = size;
+}
+
+void ViewWidget::setPanningX(float d)
+{
+  x_panning = d;
+}
+
+void ViewWidget::setPanningY(float d)
+{
+  y_panning = d;
 }
 
 

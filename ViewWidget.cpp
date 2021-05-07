@@ -356,7 +356,7 @@ void ViewWidget::kmeans_initial(int k, int mode)
   // Seed engine and set random distribution to [-1, 1]
   long seed = std::chrono::system_clock::now().time_since_epoch().count();
   std::default_random_engine engine(seed);
-  std::uniform_real_distribution<float> distribution(-3.0, 3.0);
+  std::uniform_real_distribution<float> distribution(-20.0, 20.0);
   //clear m parameters in case multiple initialization
   m_centroids.clear();
   m_centroids_history.clear();
@@ -373,7 +373,7 @@ void ViewWidget::kmeans_initial(int k, int mode)
   }else if(mode == 1){    //random sample
     qDebug()<<"random sample";
     for (int i=0; i<m_K; i++){
-      int x = (distribution(engine)+3) / 6 * m_pointNumber;
+      int x = (distribution(engine)+20) / 40 * m_pointNumber;
       mapColor(x, i);
       x = x * m_dimension;
       for (int j=0; j<m_dimension; j++) {
@@ -382,7 +382,7 @@ void ViewWidget::kmeans_initial(int k, int mode)
     }
   }else{    //K-Means++
     //Randomly select 1 sample first
-    int x = (distribution(engine)+3) / 6 * m_pointNumber;
+    int x = (distribution(engine)+20) / 40 * m_pointNumber;
     mapColor(x, 0);
     x = x * m_dimension;
     for (int j=0; j<m_dimension; j++) {

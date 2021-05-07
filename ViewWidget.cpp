@@ -16,12 +16,9 @@ ViewWidget::ViewWidget(QWidget *parent, Qt::WindowFlags f) : QOpenGLWidget(paren
   auto turntableTimer = new QTimer(this);
   turntableTimer->callOnTimeout(this, &ViewWidget::updateTurntable);
 
-  turntableTimer->start(1000.0/30.0);
+  turntableTimer->start(1000.0/60.0);
   m_elapsedTimer.start();
-
-  //generatePoints();
-  //kmeans_initial(2);
-  //kmeans_step();
+  m_fpsTimer.start();
 }
 
 static const char *vertexShaderCode_points =
@@ -99,6 +96,7 @@ void ViewWidget::initializeGL()
 
 void ViewWidget::paintGL()
 {
+  glEnable(GL_DEPTH_TEST);
   QOpenGLShaderProgram program;
   program.addShaderFromSourceCode(QOpenGLShader::Vertex,
        vertexShaderCode_axis);
@@ -166,6 +164,20 @@ void ViewWidget::paintGL()
    }
 
    program.disableAttributeArray(vertexLocation);
+
+   //Paint useful/interesting information to the screen
+   QPainter painter(this);
+   painter.setPen(QColor(255,255,255,255));
+   painter.drawText(QRect(5, 5, width(), 15), QString::number(m_fps,'G',4)+QString("FPS"));
+   painter.drawText(QRect(5, 20, width(), 15), QString("K: ")+QString::number(m_K,'G',4));
+   painter.drawText(QRect(5, 35, width(), 15), QString("Iteration: ")+QString::number(m_iteration,'G',4));
+   painter.drawText(QRect(5, 50, width(), 15), QString("Energy: ")+QString::number(m_energy,'G',4));
+   painter.drawText(QRect(5, 65, width(), 15), QString("Samples: ")+QString::number(m_pointNumber,'G',4));
+   m_frameCount++;
+   if(m_fpsTimer.elapsed() > 500){
+     m_fps = float(m_frameCount)/m_fpsTimer.restart()*1000.0f;
+     m_frameCount = 0;
+   }
 }
 
 QVector<float> ViewWidget::colormapGenerator(int size)
@@ -190,6 +202,7 @@ void ViewWidget::updateTurntable()
 
 void ViewWidget::generatePoints(int dimension, int sampleNumber)
 {
+  clearPoints();
   m_dimension = dimension;
   m_pointNumber = sampleNumber;
   // Create random 3D points
@@ -220,7 +233,9 @@ void ViewWidget::generatePointsFromFile(QString dir)
 
   if(!file.open(QFile::ReadOnly | QFile::Text)){
     QMessageBox::warning(this,"title","File openning failed!");
+    return;
   }
+  clearPoints();
   QTextStream in(&file);
   QString text = in.readLine();
   m_pointNumber = text.toInt();
@@ -280,10 +295,15 @@ void ViewWidget::kmeans_step()
       }
       updateCentroids(coor, count, i);
     }
+    energyCalculation();
 }
 
 void ViewWidget::kmeans_initial(int k, int mode)
 {
+  if (k<2||k>m_pointNumber){
+    QMessageBox::warning(this,"title","Invalid K number");
+    return;
+  }
   m_K = k;
   //Initialization
   // Seed engine and set random distribution to [-1, 1]
@@ -412,7 +432,22 @@ void ViewWidget::setZRotation(int angle)
 
 void ViewWidget::setZooming(int zoomLevel)
 {
-  m_zooming = (float)zoomLevel/360;
+  m_zooming = (float)zoomLevel/180;
+}
+//Clear history points
+void ViewWidget::clearPoints()
+{
+  m_points.clear();
+  m_centroids.clear();
+  m_iteration = 0;
+}
+
+void ViewWidget::energyCalculation()
+{
+  m_energy = 0;
+  for(int i=0; i<m_pointNumber; i++){
+    m_energy += euclideanDistance(m_class[i], i);
+  }
 }
 
 

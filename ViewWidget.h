@@ -35,13 +35,20 @@ public slots:
   void setYRotation(int angle);
   void setZRotation(int angle);
   void setZooming(int zoomLevel);
+  void clearPoints();
+  void energyCalculation();
 private:
   QVector<float> colormapGenerator(int size);
   QElapsedTimer m_elapsedTimer;
-  int m_K = 3;
+  QElapsedTimer m_fpsTimer;
+  int m_frameCount = 0;
+  float m_fps;
+  int m_K = 0;
   float m_turntableAngle = 0.0f;
   int m_dimension = 3;
-  int m_pointNumber = 50;
+  int m_pointNumber = 0;
+  int m_iteration = 0;
+  float m_energy = 0.0;
   bool m_dirty = true;
   QVector<float> m_points;
   QVector<float> m_colors;

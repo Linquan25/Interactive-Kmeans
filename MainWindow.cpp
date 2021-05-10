@@ -19,6 +19,7 @@ MainWindow::MainWindow(QWidget *parent)
   connect(m_controlPanel, &ControlPanel::centroidsShow, ui->openGLWidget, &ViewWidget::setCentroidsOn);
   connect(m_controlPanel, &ControlPanel::movieOn, ui->openGLWidget, &ViewWidget::setMovieOn);
   //Control Panel axis rotation
+  connect(m_controlPanel, &ControlPanel::freeView, ui->openGLWidget, &ViewWidget::setFreeView);
   connect(m_controlPanel, &ControlPanel::xAngle, ui->openGLWidget, &ViewWidget::setXRotation);
   connect(m_controlPanel, &ControlPanel::yAngle, ui->openGLWidget, &ViewWidget::setYRotation);
   connect(m_controlPanel, &ControlPanel::zAngle, ui->openGLWidget, &ViewWidget::setZRotation);

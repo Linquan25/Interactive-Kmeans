@@ -5,6 +5,8 @@
 #include <QOpenGLFunctions>
 #include <QOpenGLShaderProgram>
 #include <QElapsedTimer>
+#include <QMouseEvent>
+#include <QBasicTimer>
 
 class ViewWidget : public QOpenGLWidget, protected QOpenGLFunctions
 {
@@ -18,6 +20,9 @@ public:
 protected:
   void initializeGL() override;
   void paintGL() override;
+  void mousePressEvent(QMouseEvent *e) override;
+  void mouseReleaseEvent(QMouseEvent *e) override;
+  void timerEvent(QTimerEvent *e) override;
 public slots:
   void updateTurntable();
   void generatePoints(int dimension, int sampleNumber);
@@ -32,6 +37,7 @@ public slots:
   void setMovieOn(bool checked);
   void setPointsOn(bool checked);
   void setAxisOn(bool checked);
+  void setFreeView(bool checked);
   void setCentroidsOn(bool checked);
   void setXRotation(int angle);
   void setYRotation(int angle);
@@ -82,6 +88,12 @@ private:
   float m_zooming = 0.0f;
   float x_panning = 0.0f;
   float y_panning = 0.0f;
+  bool m_freeView = false;
+  QBasicTimer timer;
+  QVector2D mousePressPosition;
+  QVector3D rotationAxis;
+  qreal angularSpeed = 0;
+  QQuaternion rotation;
 };
 
 #endif // VIEWWIDGET_H

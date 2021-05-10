@@ -93,6 +93,9 @@ void ViewWidget::initializeGL()
    fragmentShaderCode_points);
 
  m_pointProgram.link();
+
+ // Use QBasicTimer because its faster than QTimer
+ timer.start(12, this);
 }
 
 void ViewWidget::paintGL()
@@ -116,11 +119,13 @@ void ViewWidget::paintGL()
    pmvMatrix.lookAt({x_panning,y_panning,5+m_zooming},{x_panning,y_panning,0},{0,1,0});
    if(m_movieOn){
      pmvMatrix.rotate(angleForTime(m_elapsedTimer.elapsed(),15), {0.0f, 1.0f, 0.0f});
+   }else if(m_freeView){
+     pmvMatrix.rotate(rotation);
+   }else{
+     pmvMatrix.rotate(m_xRotation, {1.0f, 0.0f, 0.0f});
+     pmvMatrix.rotate(m_yRotation, {0.0f, 1.0f, 0.0f});
+     pmvMatrix.rotate(m_zRotation, {0.0f, 0.0f, 1.0f});
    }
-   pmvMatrix.rotate(m_xRotation, {1.0f, 0.0f, 0.0f});
-   pmvMatrix.rotate(m_yRotation, {0.0f, 1.0f, 0.0f});
-   pmvMatrix.rotate(m_zRotation, {0.0f, 0.0f, 1.0f});
-
 
    m_pointProgram.bind();
    m_pointProgram.enableAttributeArray("vertex");
@@ -187,6 +192,48 @@ void ViewWidget::paintGL()
      m_fps = float(m_frameCount)/m_fpsTimer.restart()*1000.0f;
      m_frameCount = 0;
    }
+}
+
+void ViewWidget::mousePressEvent(QMouseEvent *e)
+{
+  // Save mouse press position
+  mousePressPosition = QVector2D(e->localPos());
+}
+
+void ViewWidget::mouseReleaseEvent(QMouseEvent *e)
+{
+  // Mouse release position - mouse press position
+  QVector2D diff = QVector2D(e->localPos()) - mousePressPosition;
+
+  // Rotation axis is perpendicular to the mouse position difference
+  // vector
+  QVector3D n = QVector3D(diff.y(), diff.x(), 0.0).normalized();
+
+  // Accelerate angular speed relative to the length of the mouse sweep
+  qreal acc = diff.length() / 100.0;
+
+  // Calculate new rotation axis as weighted sum
+  rotationAxis = (rotationAxis * angularSpeed + n * acc).normalized();
+
+  // Increase angular speed
+  angularSpeed += acc;
+}
+
+void ViewWidget::timerEvent(QTimerEvent *)
+{
+  // Decrease angular speed (friction)
+  angularSpeed *= 0.95;
+
+  // Stop rotation when speed goes below threshold
+  if (angularSpeed < 0.01) {
+      angularSpeed = 0.0;
+  } else {
+      // Update rotation
+      rotation = QQuaternion::fromAxisAndAngle(rotationAxis, angularSpeed) * rotation;
+
+      // Request an update
+      update();
+  }
 }
 
 QVector<float> ViewWidget::colormapGenerator(int size)
@@ -270,6 +317,10 @@ void ViewWidget::generatePointsFromFile(QString dir)
 
 void ViewWidget::kmeans_step()
 {
+  if(m_centroids.size()<2){
+    QMessageBox::warning(this,"title","Please initialize centroids first");
+    return;
+  }
   // Seed engine and set random distribution to [-1, 1]
   long seed = std::chrono::system_clock::now().time_since_epoch().count();
   std::default_random_engine engine(seed);
@@ -316,6 +367,10 @@ void ViewWidget::kmeans_step()
 
 void ViewWidget::kmeans_setpBack()
 {
+  if(m_centroids.size()<2){
+    QMessageBox::warning(this,"title","Please initialize centroids first");
+    return;
+  }
   if(m_centroids_history.size()==0){
     QMessageBox::warning(this,"title","You already stepped back!");
     return;
@@ -332,6 +387,10 @@ void ViewWidget::kmeans_setpBack()
 
 void ViewWidget::kmeans_runthrough()
 {
+  if(m_centroids.size()<2){
+    QMessageBox::warning(this,"title","Please initialize centroids first");
+    return;
+  }
   bool dirty = true;
   while(dirty && m_iteration<1000){
     float energy_old = m_energy;
@@ -454,6 +513,11 @@ void ViewWidget::setPointsOn(bool checked)
 void ViewWidget::setAxisOn(bool checked)
 {
   m_axisOn = checked;
+}
+
+void ViewWidget::setFreeView(bool checked)
+{
+  m_freeView = checked;
 }
 
 void ViewWidget::setCentroidsOn(bool checked)

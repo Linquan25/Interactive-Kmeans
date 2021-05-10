@@ -38,6 +38,7 @@ signals:
   void axisShow(bool checked);
   void centroidsShow(bool checked);
   void movieOn(bool checked);
+  void freeView(bool checked);
   void xAngle(int angle);
   void yAngle(int angle);
   void zAngle(int angle);
@@ -65,6 +66,8 @@ private slots:
   void on_horizontalSlider_valueChanged(int value);
 
   void on_verticalSlider_valueChanged(int value);
+
+  void on_freeViewCheckBox_clicked(bool checked);
 
 private:
   void setSlider(QSlider * slider);

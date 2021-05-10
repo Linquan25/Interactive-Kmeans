@@ -135,3 +135,8 @@ void ControlPanel::on_verticalSlider_valueChanged(int value)
 {
   emit panningY(float(value)/10);
 }
+
+void ControlPanel::on_freeViewCheckBox_clicked(bool checked)
+{
+  emit freeView(checked);
+}
